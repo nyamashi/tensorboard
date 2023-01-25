@@ -526,8 +526,9 @@ class FSSpecFileSystem:
             raise errors.NotFoundError(
                 None, None, "Not Found: " + compat.as_text(filename)
             )
-        with fs.open(path, mode, encoding=encoding) as f:
-            if continue_from is not None:
+        seek = continue_from is not None
+        with fs.open(path, mode, encoding=encoding, seekable=seek) as f:
+            if seek:
                 if not f.seekable():
                     raise errors.InvalidArgumentError(
                         None,
