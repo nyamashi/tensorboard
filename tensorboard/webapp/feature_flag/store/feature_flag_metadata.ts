@@ -110,10 +110,10 @@ export const FeatureFlagMetadataMap: FeatureFlagMetadataMapType<FeatureFlags> =
       defaultValue: true,
       queryParamOverride: null,
     },
-    enableShowFlags: {
-      defaultValue: false,
+    showFlags: {
+      defaultValue: undefined,
       queryParamOverride: 'showFlags',
-      parseValue: parseBoolean,
+      parseValue: (str) => str,
     },
     allowRangeSelection: {
       defaultValue: true,
@@ -128,6 +128,11 @@ export const FeatureFlagMetadataMap: FeatureFlagMetadataMapType<FeatureFlags> =
     enableScalarColumnCustomization: {
       defaultValue: false,
       queryParamOverride: 'enableScalarColumnCustomization',
+      parseValue: parseBoolean,
+    },
+    enableHparamsInTimeSeries: {
+      defaultValue: false,
+      queryParamOverride: 'enableHparamsInTimeSeries',
       parseValue: parseBoolean,
     },
   };

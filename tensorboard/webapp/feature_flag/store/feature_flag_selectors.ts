@@ -19,13 +19,9 @@ import {
   FeatureFlagMetadataMapType,
   FeatureFlagType,
 } from './feature_flag_metadata';
-import {
-  FeatureFlagState,
-  FEATURE_FLAG_FEATURE_KEY,
-  State,
-} from './feature_flag_types';
+import {FeatureFlagState, FEATURE_FLAG_FEATURE_KEY} from './feature_flag_types';
 
-const selectFeatureFlagState = createFeatureSelector<State, FeatureFlagState>(
+const selectFeatureFlagState = createFeatureSelector<FeatureFlagState>(
   FEATURE_FLAG_FEATURE_KEY
 );
 
@@ -154,7 +150,7 @@ export const getIsDataTableEnabled = createSelector(
 export const getShowFlagsEnabled = createSelector(
   getFeatureFlags,
   (flags: FeatureFlags): boolean => {
-    return flags.enableShowFlags;
+    return flags.showFlags !== undefined;
   }
 );
 
@@ -176,5 +172,12 @@ export const getIsScalarColumnCustomizationEnabled = createSelector(
   getFeatureFlags,
   (flags: FeatureFlags): boolean => {
     return flags.enableScalarColumnCustomization;
+  }
+);
+
+export const getEnableHparamsInTimeSeries = createSelector(
+  getFeatureFlags,
+  (flags: FeatureFlags): boolean => {
+    return flags.enableHparamsInTimeSeries;
   }
 );

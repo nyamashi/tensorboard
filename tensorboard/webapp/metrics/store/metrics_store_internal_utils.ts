@@ -22,17 +22,22 @@ import {
   CardId,
   CardMetadata,
   CardUniqueInfo,
+  MinMaxStep,
   NonPinnedCardId,
   TimeSelection,
-} from '../internal_types';
+} from '../types';
 import {
+  CardFeatureOverride,
   CardMetadataMap,
+  CardState,
+  CardStateMap,
   CardStepIndexMap,
   CardStepIndexMetaData,
   CardToPinnedCard,
   MetricsState,
   PinnedCardToCard,
   RunToLoadState,
+  RunToSeries,
   TagMetadata,
   TimeSeriesData,
   TimeSeriesLoadables,
@@ -45,6 +50,7 @@ type ResolvedPinPartialState = Pick<
   | 'cardToPinnedCopyCache'
   | 'pinnedCardToOriginal'
   | 'cardStepIndex'
+  | 'cardStateMap'
 >;
 
 const DISTANCE_RATIO = 0.1;
@@ -206,10 +212,11 @@ export function buildOrReturnStateWithUnresolvedImportedPins(
   cardToPinnedCopy: CardToPinnedCard,
   cardToPinnedCopyCache: CardToPinnedCard,
   pinnedCardToOriginal: PinnedCardToCard,
-  cardStepIndexMap: CardStepIndexMap
+  cardStepIndexMap: CardStepIndexMap,
+  cardStateMap: CardStateMap
 ): ResolvedPinPartialState & {unresolvedImportedPinnedCards: CardUniqueInfo[]} {
   const unresolvedPinSet = new Set(unresolvedImportedPinnedCards);
-  const nonPinnedCardsWithMatch = [];
+  const nonPinnedCardsWithMatch: string[] = [];
   for (const unresolvedPin of unresolvedImportedPinnedCards) {
     for (const nonPinnedCardId of nonPinnedCards) {
       const cardMetadata = cardMetadataMap[nonPinnedCardId];
@@ -229,6 +236,7 @@ export function buildOrReturnStateWithUnresolvedImportedPins(
       cardToPinnedCopyCache,
       pinnedCardToOriginal,
       cardStepIndex: cardStepIndexMap,
+      cardStateMap,
     };
   }
 
@@ -238,6 +246,7 @@ export function buildOrReturnStateWithUnresolvedImportedPins(
     pinnedCardToOriginal,
     cardStepIndex: cardStepIndexMap,
     cardMetadataMap,
+    cardStateMap,
   };
   for (const cardToPin of nonPinnedCardsWithMatch) {
     stateWithResolvedPins = buildOrReturnStateWithPinnedCopy(
@@ -246,7 +255,8 @@ export function buildOrReturnStateWithUnresolvedImportedPins(
       stateWithResolvedPins.cardToPinnedCopyCache,
       stateWithResolvedPins.pinnedCardToOriginal,
       stateWithResolvedPins.cardStepIndex,
-      stateWithResolvedPins.cardMetadataMap
+      stateWithResolvedPins.cardMetadataMap,
+      cardStateMap
     );
   }
 
@@ -266,7 +276,8 @@ export function buildOrReturnStateWithPinnedCopy(
   cardToPinnedCopyCache: CardToPinnedCard,
   pinnedCardToOriginal: PinnedCardToCard,
   cardStepIndexMap: CardStepIndexMap,
-  cardMetadataMap: CardMetadataMap
+  cardMetadataMap: CardMetadataMap,
+  cardStateMap: CardStateMap
 ): ResolvedPinPartialState {
   // No-op if the card already has a pinned copy.
   if (cardToPinnedCopy.has(cardId)) {
@@ -276,6 +287,7 @@ export function buildOrReturnStateWithPinnedCopy(
       pinnedCardToOriginal,
       cardStepIndex: cardStepIndexMap,
       cardMetadataMap,
+      cardStateMap,
     };
   }
 
@@ -284,12 +296,13 @@ export function buildOrReturnStateWithPinnedCopy(
   const nextPinnedCardToOriginal = new Map(pinnedCardToOriginal);
   const nextCardStepIndexMap = {...cardStepIndexMap};
   const nextCardMetadataMap = {...cardMetadataMap};
+  const nextCardStateMap = {...cardStateMap};
 
-  // Create a pinned copy. Copies step index from the original card.
   const pinnedCardId = getPinnedCardId(cardId);
   nextCardToPinnedCopy.set(cardId, pinnedCardId);
   nextCardToPinnedCopyCache.set(cardId, pinnedCardId);
   nextPinnedCardToOriginal.set(pinnedCardId, cardId);
+
   if (cardStepIndexMap.hasOwnProperty(cardId)) {
     nextCardStepIndexMap[pinnedCardId] = cardStepIndexMap[cardId];
   }
@@ -300,12 +313,20 @@ export function buildOrReturnStateWithPinnedCopy(
   }
   nextCardMetadataMap[pinnedCardId] = metadata;
 
+  if (nextCardStateMap[cardId]) {
+    // This shared reference is okay because the reducer will force the referenced
+    // object to be updated when any changes are made to it.
+    // https://github.com/tensorflow/tensorboard/pull/6172#discussion_r1115007044
+    nextCardStateMap[pinnedCardId] = nextCardStateMap[cardId];
+  }
+
   return {
     cardToPinnedCopy: nextCardToPinnedCopy,
     cardToPinnedCopyCache: nextCardToPinnedCopyCache,
     pinnedCardToOriginal: nextPinnedCardToOriginal,
     cardStepIndex: nextCardStepIndexMap,
     cardMetadataMap: nextCardMetadataMap,
+    cardStateMap: nextCardStateMap,
   };
 }
 
@@ -365,6 +386,18 @@ export function generateNextCardStepIndex(
   return nextCardStepIndexMap;
 }
 
+export function generateScalarCardMinMaxStep(
+  runsToSeries: RunToSeries<PluginType.SCALARS>
+): MinMaxStep {
+  const allData = Object.values(runsToSeries)
+    .flat()
+    .map((stepDatum) => stepDatum.step);
+  return {
+    minStep: Math.min(...allData),
+    maxStep: Math.max(...allData),
+  };
+}
+
 /**
  * The maximum number of pins we allow the user to create. This is intentionally
  * finite at the moment to mitigate super long URL lengths, until there is more
@@ -397,7 +430,7 @@ export function generateNextCardStepIndexFromLinkedTimeSelection(
 
     const steps = getImageCardSteps(cardId, cardMetadataMap, timeSeriesData);
 
-    let nextStepIndexMetaData = null;
+    let nextStepIndexMetaData: CardStepIndexMetaData | null = null;
     if (timeSelection.end === null) {
       // Single Selection
       nextStepIndexMetaData = getNextImageCardStepIndexFromSingleSelection(
@@ -467,7 +500,7 @@ function getSelectedSteps(
   }
 
   // Range selection.
-  const selectedStepsInRange = [];
+  const selectedStepsInRange: number[] = [];
   for (const step of steps) {
     if (step >= timeSelection.start.step && step <= timeSelection.end.step) {
       selectedStepsInRange.push(step);
@@ -537,6 +570,30 @@ function getNextImageCardStepIndexFromRangeSelection(
 
   // Does not update index when it is in selected range.
   return null;
+}
+
+/**
+ * Determines what a cards realized min max should be by examining the min and
+ * max steps in the data as well as any user defined min and max
+ * @param cardState
+ */
+export function getMinMaxStepFromCardState(cardState: Partial<CardState>) {
+  const {dataMinMax, userMinMax} = cardState;
+  return userMinMax || dataMinMax;
+}
+
+export function getCardSelectionStateToBoolean(
+  cardOverrideState: CardFeatureOverride | undefined,
+  globalValue: boolean
+) {
+  switch (cardOverrideState) {
+    case CardFeatureOverride.OVERRIDE_AS_ENABLED:
+      return true;
+    case CardFeatureOverride.OVERRIDE_AS_DISABLED:
+      return false;
+    default:
+      return globalValue;
+  }
 }
 
 export const TEST_ONLY = {

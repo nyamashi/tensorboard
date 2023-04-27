@@ -7,6 +7,8 @@ licenses(["notice"])
 tf_sass_binary(
     name = "debugger_component_style",
     src = "debugger_component.scss",
+    strict_deps = False,
+    deps = ["//tensorboard/webapp/theme"],
 )
 
 # TODO(cais): Consider replacing old debuger plugin with this before launch,
@@ -115,7 +117,7 @@ genrule(
     name = "generate_dtypes",
     outs = ["tf_dtypes.ts"],
     cmd = "$(execpath :extract_dtypes_from_python) $@",
-    exec_tools = [
+    tools = [
         ":extract_dtypes_from_python",
     ],
 )

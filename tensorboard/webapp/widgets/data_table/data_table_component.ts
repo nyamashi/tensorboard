@@ -73,41 +73,6 @@ export class DataTableComponent implements OnDestroy {
     document.removeEventListener('dragover', preventDefault);
   }
 
-  getHeaderTextColumn(columnHeader: ColumnHeaderType): string {
-    switch (columnHeader) {
-      case ColumnHeaderType.RUN:
-        return 'Run';
-      case ColumnHeaderType.VALUE:
-        return 'Value';
-      case ColumnHeaderType.STEP:
-        return 'Step';
-      case ColumnHeaderType.TIME:
-        return 'Time';
-      case ColumnHeaderType.RELATIVE_TIME:
-        return 'Relative';
-      case ColumnHeaderType.SMOOTHED:
-        return 'Smoothed';
-      case ColumnHeaderType.VALUE_CHANGE:
-        return 'Value';
-      case ColumnHeaderType.START_STEP:
-        return 'Start Step';
-      case ColumnHeaderType.END_STEP:
-        return 'End Step';
-      case ColumnHeaderType.START_VALUE:
-        return 'Start Value';
-      case ColumnHeaderType.END_VALUE:
-        return 'End Value';
-      case ColumnHeaderType.MIN_VALUE:
-        return 'Min';
-      case ColumnHeaderType.MAX_VALUE:
-        return 'Max';
-      case ColumnHeaderType.PERCENTAGE_CHANGE:
-        return '%';
-      default:
-        return '';
-    }
-  }
-
   getFormattedDataForColumn(
     columnHeader: ColumnHeaderType,
     selectedStepRunData: SelectedStepRunData
@@ -122,7 +87,9 @@ export class DataTableComponent implements OnDestroy {
         if (selectedStepRunData.VALUE === undefined) {
           return '';
         }
-        return numberFormatter.formatShort(selectedStepRunData.VALUE as number);
+        return intlNumberFormatter.formatShort(
+          selectedStepRunData.VALUE as number
+        );
       case ColumnHeaderType.STEP:
         if (selectedStepRunData.STEP === undefined) {
           return '';
@@ -147,14 +114,14 @@ export class DataTableComponent implements OnDestroy {
         if (selectedStepRunData.SMOOTHED === undefined) {
           return '';
         }
-        return numberFormatter.formatShort(
+        return intlNumberFormatter.formatShort(
           selectedStepRunData.SMOOTHED as number
         );
       case ColumnHeaderType.VALUE_CHANGE:
         if (selectedStepRunData.VALUE_CHANGE === undefined) {
           return '';
         }
-        return numberFormatter.formatShort(
+        return intlNumberFormatter.formatShort(
           Math.abs(selectedStepRunData.VALUE_CHANGE as number)
         );
       case ColumnHeaderType.START_STEP:
@@ -207,6 +174,34 @@ export class DataTableComponent implements OnDestroy {
           Math.round(
             (selectedStepRunData.PERCENTAGE_CHANGE as number) * 100
           ).toString() + '%'
+        );
+      case ColumnHeaderType.STEP_AT_MAX:
+        if (selectedStepRunData.STEP_AT_MAX === undefined) {
+          return '';
+        }
+        return intlNumberFormatter.formatShort(
+          selectedStepRunData.STEP_AT_MAX as number
+        );
+      case ColumnHeaderType.STEP_AT_MIN:
+        if (selectedStepRunData.STEP_AT_MIN === undefined) {
+          return '';
+        }
+        return intlNumberFormatter.formatShort(
+          selectedStepRunData.STEP_AT_MIN as number
+        );
+      case ColumnHeaderType.MEAN:
+        if (selectedStepRunData.MEAN === undefined) {
+          return '';
+        }
+        return intlNumberFormatter.formatShort(
+          selectedStepRunData.MEAN as number
+        );
+      case ColumnHeaderType.RAW_CHANGE:
+        if (selectedStepRunData.RAW_CHANGE === undefined) {
+          return '';
+        }
+        return numberFormatter.formatShort(
+          Math.abs(selectedStepRunData.RAW_CHANGE as number)
         );
       default:
         return '';

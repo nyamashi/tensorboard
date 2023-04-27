@@ -26,7 +26,9 @@ import {
   createTimeSeriesData,
 } from '../testing';
 import {HistogramMode, TooltipSort, XAxisType} from '../types';
+import {DataTableMode} from '../views/card_renderer/scalar_card_types';
 import * as selectors from './metrics_selectors';
+import {CardFeatureOverride, MetricsState} from './metrics_types';
 
 describe('metrics selectors', () => {
   beforeEach(() => {
@@ -238,6 +240,25 @@ describe('metrics selectors', () => {
     });
   });
 
+  describe('getCardStateMap', () => {
+    it('returns cardStateMap', () => {
+      const state = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {
+            card1: {
+              tableExpanded: true,
+            },
+          },
+        })
+      );
+      expect(selectors.getCardStateMap(state)).toEqual({
+        card1: {
+          tableExpanded: true,
+        },
+      });
+    });
+  });
+
   describe('getNonEmptyCardIdsWithMetadata', () => {
     beforeEach(() => {
       selectors.getNonEmptyCardIdsWithMetadata.release();
@@ -402,6 +423,479 @@ describe('metrics selectors', () => {
       expect(selectors.getCardStepIndexMetaData(state, 'card1')).toEqual(
         buildStepIndexMetadata({index: 5})
       );
+    });
+  });
+
+  describe('getMetricsCardTimeSelection', () => {
+    describe('when linked time is disabled', () => {
+      let partialState: Partial<MetricsState>;
+      beforeEach(() => {
+        partialState = {
+          linkedTimeEnabled: false,
+        };
+      });
+
+      it('returns cards timeSelection if defined', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 10,
+                },
+                timeSelection: {
+                  start: {step: 0},
+                  end: {step: 5},
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 5},
+        });
+      });
+
+      it('returns undefined if step selection is disabled', () => {
+        expect(
+          selectors.getMetricsCardTimeSelection(
+            appStateFromMetricsState(
+              buildMetricsState({
+                ...partialState,
+                stepSelectorEnabled: true,
+                cardStateMap: {
+                  card1: {
+                    stepSelectionOverride:
+                      CardFeatureOverride.OVERRIDE_AS_DISABLED,
+                    dataMinMax: {
+                      minStep: 0,
+                      maxStep: 10,
+                    },
+                    timeSelection: {
+                      start: {step: 0},
+                      end: {step: 5},
+                    },
+                  },
+                },
+              })
+            ),
+            'card1'
+          )
+        ).toBeUndefined();
+
+        expect(
+          selectors.getMetricsCardTimeSelection(
+            appStateFromMetricsState(
+              buildMetricsState({
+                ...partialState,
+                stepSelectorEnabled: false,
+                cardStateMap: {
+                  card1: {
+                    dataMinMax: {
+                      minStep: 0,
+                      maxStep: 10,
+                    },
+                    timeSelection: {
+                      start: {step: 0},
+                      end: {step: 5},
+                    },
+                  },
+                },
+              })
+            ),
+            'card1'
+          )
+        ).toBeUndefined();
+      });
+
+      it('returns undefined if no min max is defined', () => {
+        expect(
+          selectors.getMetricsCardTimeSelection(
+            appStateFromMetricsState(
+              buildMetricsState({
+                ...partialState,
+                cardStateMap: {
+                  card1: {
+                    timeSelection: {
+                      start: {step: 0},
+                      end: {step: 5},
+                    },
+                  },
+                },
+              })
+            ),
+            'card1'
+          )
+        ).toBeUndefined();
+      });
+
+      it('returns undefined when there is no card state', () => {
+        expect(
+          selectors.getMetricsCardTimeSelection(
+            appStateFromMetricsState(
+              buildMetricsState({
+                ...partialState,
+                cardStateMap: {},
+              })
+            ),
+            'card1'
+          )
+        ).toBeUndefined();
+      });
+
+      it('uses max step as end value if none exists', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 10,
+                },
+                timeSelection: {
+                  start: {step: 0},
+                  end: null,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 10},
+        });
+      });
+
+      it('returns cards minMax as a timeSelection if timeSelection is undefined', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 5},
+        });
+      });
+
+      it('removes end value if range selection is overridden as disabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                rangeSelectionOverride:
+                  CardFeatureOverride.OVERRIDE_AS_DISABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: null,
+        });
+      });
+
+      it('removes end value if range selection is globally disabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: false,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: null,
+        });
+      });
+
+      it('does not remove end value if range selection is overridden as enabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: false,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 5},
+        });
+      });
+
+      it('clips time selection if it exceeds the cards minMax', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 5,
+                  maxStep: 10,
+                },
+                timeSelection: {
+                  start: {step: 0},
+                  end: {step: 15},
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 5},
+          end: {step: 10},
+        });
+      });
+    });
+
+    describe('with linkedTime enabled', () => {
+      let partialState: Partial<MetricsState>;
+      beforeEach(() => {
+        partialState = {
+          linkedTimeEnabled: true,
+          linkedTimeSelection: {
+            start: {step: 0},
+            end: {step: 5},
+          },
+        };
+      });
+
+      it('returns linkedTimeSelection if linkedTime is enabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 5},
+        });
+      });
+
+      it('removes end value if global range selection is disabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: false,
+            cardStateMap: {
+              card1: {
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: null,
+        });
+      });
+
+      it('maintains end value if local range selection is overridden as disabled', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                dataMinMax: {
+                  minStep: 0,
+                  maxStep: 5,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 0},
+          end: {step: 5},
+        });
+      });
+
+      it('clips time selection based on card minMax', () => {
+        const state = appStateFromMetricsState(
+          buildMetricsState({
+            ...partialState,
+            rangeSelectionEnabled: true,
+            cardStateMap: {
+              card1: {
+                dataMinMax: {
+                  minStep: 1,
+                  maxStep: 4,
+                },
+              },
+            },
+          })
+        );
+
+        expect(selectors.getMetricsCardTimeSelection(state, 'card1')).toEqual({
+          start: {step: 1},
+          end: {step: 4},
+        });
+      });
+    });
+  });
+
+  describe('getMetricsCardMinMax', () => {
+    it('returns userMinMax when defined', () => {
+      const state = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {
+            card1: {
+              userMinMax: {
+                minStep: 10,
+                maxStep: 20,
+              },
+              dataMinMax: {
+                minStep: 0,
+                maxStep: 100,
+              },
+            },
+          },
+        })
+      );
+
+      expect(selectors.getMetricsCardMinMax(state, 'card1')).toEqual({
+        minStep: 10,
+        maxStep: 20,
+      });
+    });
+
+    it('returns dataMinMax when userMinMax is not defined', () => {
+      const state = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {
+            card1: {
+              dataMinMax: {
+                minStep: 0,
+                maxStep: 100,
+              },
+            },
+          },
+        })
+      );
+
+      expect(selectors.getMetricsCardMinMax(state, 'card1')).toEqual({
+        minStep: 0,
+        maxStep: 100,
+      });
+    });
+  });
+
+  describe('getMetricsCardDataMinMax', () => {
+    it('returns undefined when cardStateMap is undefined', () => {
+      const state = appStateFromMetricsState(buildMetricsState({}));
+      expect(
+        selectors.getMetricsCardDataMinMax(state, 'card1')
+      ).toBeUndefined();
+    });
+
+    it('returns undefined when card has no cardState', () => {
+      const state1 = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {},
+        })
+      );
+
+      const state2 = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {
+            card1: {},
+          },
+        })
+      );
+
+      expect(
+        selectors.getMetricsCardDataMinMax(state1, 'card1')
+      ).toBeUndefined();
+      expect(
+        selectors.getMetricsCardDataMinMax(state2, 'card1')
+      ).toBeUndefined();
+    });
+
+    it('returns data cards minMax when defined', () => {
+      const state = appStateFromMetricsState(
+        buildMetricsState({
+          cardStateMap: {
+            card1: {
+              dataMinMax: {
+                minStep: 0,
+                maxStep: 100,
+              },
+            },
+          },
+        })
+      );
+      expect(selectors.getMetricsCardDataMinMax(state, 'card1')).toEqual({
+        minStep: 0,
+        maxStep: 100,
+      });
     });
   });
 
@@ -591,6 +1085,28 @@ describe('metrics selectors', () => {
       expect(selectors.getMetricsXAxisType(state)).toBe(XAxisType.WALL_TIME);
     });
 
+    it('returns hideEmptyCards when getMetricsHideEmptyCards is called', () => {
+      selectors.getMetricsHideEmptyCards.release();
+      let state = appStateFromMetricsState(
+        buildMetricsState({
+          settings: buildMetricsSettingsState({
+            hideEmptyCards: false,
+          }),
+        })
+      );
+      expect(selectors.getMetricsHideEmptyCards(state)).toBe(false);
+
+      state = appStateFromMetricsState(
+        buildMetricsState({
+          settings: buildMetricsSettingsState({
+            hideEmptyCards: true,
+          }),
+        })
+      );
+
+      expect(selectors.getMetricsHideEmptyCards(state)).toBe(true);
+    });
+
     it('returns scalarSmoothing when called getMetricsScalarSmoothing', () => {
       selectors.getMetricsScalarSmoothing.release();
       const state = appStateFromMetricsState(
@@ -729,6 +1245,107 @@ describe('metrics selectors', () => {
     });
   });
 
+  describe('getMetricsCardRangeSelectionEnabled', () => {
+    it('returns card specific value when defined', () => {
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: false,
+              cardStateMap: {
+                card1: {
+                  rangeSelectionOverride:
+                    CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                },
+              },
+            })
+          ),
+          'card1'
+        )
+      ).toBeTrue();
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: true,
+              cardStateMap: {
+                card1: {
+                  rangeSelectionOverride:
+                    CardFeatureOverride.OVERRIDE_AS_DISABLED,
+                },
+              },
+            })
+          ),
+          'card1'
+        )
+      ).toBeFalse();
+    });
+
+    it('returns global value when card specific value is not defined', () => {
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: true,
+              cardStateMap: {
+                card1: {},
+              },
+            })
+          ),
+          'card1'
+        )
+      ).toBeTrue();
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: false,
+            })
+          ),
+          'card1'
+        )
+      ).toBeFalse();
+    });
+
+    it('returns global value when linked time is enabled', () => {
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: true,
+              linkedTimeEnabled: true,
+              cardStateMap: {
+                card1: {
+                  rangeSelectionOverride:
+                    CardFeatureOverride.OVERRIDE_AS_DISABLED,
+                },
+              },
+            })
+          ),
+          'card1'
+        )
+      ).toBeTrue();
+
+      expect(
+        selectors.getMetricsCardRangeSelectionEnabled(
+          appStateFromMetricsState(
+            buildMetricsState({
+              rangeSelectionEnabled: false,
+              linkedTimeEnabled: true,
+              cardStateMap: {
+                card1: {
+                  rangeSelectionOverride:
+                    CardFeatureOverride.OVERRIDE_AS_ENABLED,
+                },
+              },
+            })
+          ),
+          'card1'
+        )
+      ).toBeFalse();
+    });
+  });
+
   describe('getMetricsStepMinMax', () => {
     beforeEach(() => {
       selectors.getMetricsStepMinMax.release();
@@ -819,29 +1436,11 @@ describe('metrics selectors', () => {
             end: {step: 100},
           },
           linkedTimeEnabled: true,
-          rangeSelectionEnabled: true,
         })
       );
       expect(selectors.getMetricsLinkedTimeSelection(state)).toEqual({
         start: {step: 0},
         end: {step: 100},
-      });
-    });
-
-    it('removes `end` when using single step mode', () => {
-      const state = appStateFromMetricsState(
-        buildMetricsState({
-          linkedTimeSelection: {
-            start: {step: 0},
-            end: {step: 100},
-          },
-          linkedTimeEnabled: true,
-          rangeSelectionEnabled: false,
-        })
-      );
-      expect(selectors.getMetricsLinkedTimeSelection(state)).toEqual({
-        start: {step: 0},
-        end: null,
       });
     });
   });
@@ -873,6 +1472,21 @@ describe('metrics selectors', () => {
         buildMetricsState({isSettingsPaneOpen: false})
       );
       expect(selectors.isMetricsSettingsPaneOpen(state)).toEqual(false);
+    });
+  });
+
+  describe('#getTableEditorSelectedTab', () => {
+    beforeEach(() => {
+      selectors.getTableEditorSelectedTab.release();
+    });
+
+    it('returns current settings pane open state', () => {
+      const state = appStateFromMetricsState(
+        buildMetricsState({tableEditorSelectedTab: DataTableMode.RANGE})
+      );
+      expect(selectors.getTableEditorSelectedTab(state)).toEqual(
+        DataTableMode.RANGE
+      );
     });
   });
 });

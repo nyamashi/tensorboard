@@ -43,10 +43,12 @@ import {
   ScaleType,
   TooltipDatum,
 } from '../../../widgets/line_chart_v2/types';
-import {TooltipSort, XAxisType} from '../../types';
+import {CardState} from '../../store';
+import {HeaderEditInfo, TooltipSort, XAxisType} from '../../types';
 import {
   ColumnHeader,
   ColumnHeaderType,
+  DataTableMode,
   MinMaxStep,
   ScalarCardDataSeries,
   ScalarCardSeriesMetadata,
@@ -54,7 +56,7 @@ import {
   SortingInfo,
   SortingOrder,
 } from './scalar_card_types';
-import {TimeSelectionView} from './utils';
+import {isDatumVisible, TimeSelectionView} from './utils';
 
 type ScalarTooltipDatum = TooltipDatum<
   ScalarCardSeriesMetadata & {
@@ -75,13 +77,14 @@ export class ScalarCardComponent<Downloader> {
 
   @Input() cardId!: string;
   @Input() chartMetadataMap!: ScalarCardSeriesMetadataMap;
+  @Input() cardState?: CardState;
   @Input() DataDownloadComponent!: ComponentType<Downloader>;
   @Input() dataSeries!: ScalarCardDataSeries[];
   @Input() ignoreOutliers!: boolean;
   @Input() isCardVisible!: boolean;
   @Input() isPinned!: boolean;
   @Input() loadState!: DataLoadState;
-  @Input() showFullSize!: boolean;
+  @Input() showFullWidth!: boolean;
   @Input() smoothingEnabled!: boolean;
   @Input() tag!: string;
   @Input() title!: string;
@@ -91,12 +94,12 @@ export class ScalarCardComponent<Downloader> {
   @Input() useDarkMode!: boolean;
   @Input() forceSvg!: boolean;
   @Input() columnCustomizationEnabled!: boolean;
-  @Input() linkedTimeSelection!: TimeSelectionView | null;
-  @Input() stepOrLinkedTimeSelection!: TimeSelection | null;
-  @Input() rangeSelectionEnabled: boolean = false;
+  @Input() linkedTimeSelection: TimeSelectionView | undefined;
+  @Input() stepOrLinkedTimeSelection: TimeSelection | undefined;
   @Input() isProspectiveFobFeatureEnabled: Boolean = false;
   @Input() minMaxStep!: MinMaxStep;
   @Input() columnHeaders!: ColumnHeader[];
+  @Input() rangeEnabled!: boolean;
 
   @Output() onFullSizeToggle = new EventEmitter<void>();
   @Output() onPinClicked = new EventEmitter<boolean>();
@@ -107,9 +110,12 @@ export class ScalarCardComponent<Downloader> {
   @Output() onStepSelectorToggled =
     new EventEmitter<TimeSelectionToggleAffordance>();
   @Output() onDataTableSorting = new EventEmitter<SortingInfo>();
-  @Output() reorderColumnHeaders = new EventEmitter<ColumnHeader[]>();
+  @Output() editColumnHeaders = new EventEmitter<HeaderEditInfo>();
+  @Output() openTableEditMenuToMode = new EventEmitter<DataTableMode>();
 
   @Output() onLineChartZoom = new EventEmitter<Extent>();
+
+  @Output() onCardStateChanged = new EventEmitter<Partial<CardState>>();
 
   // Line chart may not exist when was never visible (*ngIf).
   @ViewChild(LineChartComponent)
@@ -118,6 +124,9 @@ export class ScalarCardComponent<Downloader> {
     header: ColumnHeaderType.RUN,
     order: SortingOrder.ASCENDING,
   };
+
+  @ViewChild('dataTableContainer')
+  dataTableContainer?: ElementRef;
 
   constructor(private readonly ref: ElementRef, private dialog: MatDialog) {}
 
@@ -232,17 +241,54 @@ export class ScalarCardComponent<Downloader> {
   }
 
   showDataTable() {
-    return (
-      this.xAxisType === XAxisType.STEP &&
-      this.stepOrLinkedTimeSelection !== null
-    );
+    return this.xAxisType === XAxisType.STEP && this.stepOrLinkedTimeSelection;
   }
 
   showFobController() {
     return (
       this.xAxisType === XAxisType.STEP &&
-      (this.stepOrLinkedTimeSelection !== null ||
-        this.isProspectiveFobFeatureEnabled)
+      this.minMaxStep &&
+      (this.stepOrLinkedTimeSelection || this.isProspectiveFobFeatureEnabled)
     );
+  }
+
+  canExpandTable() {
+    const visbleRuns = this.dataSeries.filter((datum) => {
+      return isDatumVisible(datum, this.chartMetadataMap);
+    });
+
+    // 3 is the maximum number of runs that can be shown before
+    // the height of the table exceeds $_data_table_initial_height.
+    return visbleRuns.length > 3;
+  }
+
+  shouldExpandTable() {
+    // If the user has resized the data table a height style will be set.
+    // If the data table has been resized we always want to expand the table.
+    // Otherwise the table should be toggled.
+    return Boolean(
+      this.dataTableContainer?.nativeElement.style.height ||
+        !this.cardState?.tableExpanded
+    );
+  }
+
+  toggleTableExpanded() {
+    this.onCardStateChanged.emit({
+      ...this.cardState,
+      tableExpanded: this.shouldExpandTable(),
+    });
+    // Manually resizing an element sets a style value on the element which takes
+    // precedence over any classes the element may have. This value must be removed
+    // for the table to expand or collapse correctly.
+    if (this.dataTableContainer) {
+      this.dataTableContainer.nativeElement.style.height = '';
+    }
+  }
+
+  openTableEditMenu() {
+    const currentTableMode = this.rangeEnabled
+      ? DataTableMode.RANGE
+      : DataTableMode.SINGLE;
+    this.openTableEditMenuToMode.emit(currentTableMode);
   }
 }

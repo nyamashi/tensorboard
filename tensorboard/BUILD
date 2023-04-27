@@ -316,12 +316,11 @@ py_library(
         "//tensorboard/plugins/image:images_plugin",
         "//tensorboard/plugins/mesh:mesh_plugin",
         "//tensorboard/plugins/metrics:metrics_plugin",
-        "//tensorboard/plugins/npmi:npmi_plugin",
         "//tensorboard/plugins/pr_curve:pr_curves_plugin",
         "//tensorboard/plugins/profile_redirect:profile_redirect_plugin",
         "//tensorboard/plugins/scalar:scalars_plugin",
         "//tensorboard/plugins/text:text_plugin",
-        "//tensorboard/plugins/text_v2:text_v2_plugin",
+        "//tensorboard/plugins/wit_redirect:wit_redirect_plugin",
     ],
 )
 
@@ -490,18 +489,29 @@ py_library(name = "expect_pandas_installed")
 # optional dependency.
 py_library(name = "expect_fsspec_installed")
 
+# This is a dummy rule used as a protobuf dependency in open-source.
+# We expect protobuf to already be installed on the system, e.g. via
+# `pip install protobuf`.
+#
+# Note that this dependency only represents the protobuf runtime library,
+# it is not used for compiling .proto files to generated code, which is
+# done by protoc as part of the build process. The protoc version may
+# differ from the runtime version, but to be compatible, the runtime
+# version should always be >= the protoc version.
+py_library(name = "expect_protobuf_installed")
+
 py_library(
     name = "data_compat",
     srcs = ["data_compat.py"],
     srcs_version = "PY3",
     deps = [
+        ":expect_protobuf_installed",
         "//tensorboard/compat/proto:protos_all_py_pb2",
         "//tensorboard/plugins/audio:metadata",
         "//tensorboard/plugins/histogram:metadata",
         "//tensorboard/plugins/image:metadata",
         "//tensorboard/plugins/scalar:metadata",
         "//tensorboard/util:tensor_util",
-        "@com_google_protobuf//:protobuf_python",
     ],
 )
 

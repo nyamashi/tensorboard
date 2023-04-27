@@ -33,7 +33,6 @@ import {MinMaxStep} from './scalar_card_types';
       [style.pointerEvents]="disableInteraction ? 'none' : 'all'"
       [axisDirection]="axisDirection"
       [timeSelection]="timeSelection"
-      [rangeSelectionEnabled]="rangeSelectionEnabled"
       [startStepAxisPosition]="getAxisPositionFromStartStep()"
       [endStepAxisPosition]="getAxisPositionFromEndStep()"
       [prospectiveStepAxisPosition]="getAxisPositionFromProspectiveStep()"
@@ -43,7 +42,7 @@ import {MinMaxStep} from './scalar_card_types';
       [isProspectiveFobFeatureEnabled]="isProspectiveFobFeatureEnabled"
       [cardFobHelper]="cardFobHelper"
       [showExtendedLine]="true"
-      (onPrespectiveStepChanged)="onPrespectiveStepChanged($event)"
+      (onProspectiveStepChanged)="onProspectiveStepChanged($event)"
       (onTimeSelectionChanged)="onTimeSelectionChanged.emit($event)"
       (onTimeSelectionToggled)="onTimeSelectionToggled.emit($event)"
     ></card-fob-controller>
@@ -57,7 +56,6 @@ export class ScalarCardFobController {
   @Input() minMaxHorizontalViewExtend!: [number, number];
   @Input() minMaxStep!: MinMaxStep;
   @Input() axisSize!: number;
-  @Input() rangeSelectionEnabled: boolean = false;
   @Input() isProspectiveFobFeatureEnabled: Boolean = false;
   @Input() disableInteraction: boolean = false;
 
@@ -107,7 +105,7 @@ export class ScalarCardFobController {
     );
   }
 
-  onPrespectiveStepChanged(step: number | null) {
+  onProspectiveStepChanged(step: number | null) {
     this.prospectiveStep = step;
   }
 

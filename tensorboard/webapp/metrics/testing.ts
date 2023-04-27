@@ -42,6 +42,7 @@ import {
   StepDatum,
 } from './store/metrics_types';
 import {CardId, CardMetadata, TooltipSort, XAxisType} from './types';
+import {DataTableMode} from './views/card_renderer/scalar_card_types';
 
 export function buildMetricsSettingsState(
   overrides?: Partial<MetricsSettings>
@@ -52,6 +53,7 @@ export function buildMetricsSettingsState(
     ignoreOutliers: false,
     xAxisType: XAxisType.WALL_TIME,
     scalarSmoothing: 0.3,
+    hideEmptyCards: true,
     scalarPartitionNonMonotonicX: false,
     imageBrightnessInMilli: 123,
     imageContrastInMilli: 123,
@@ -94,6 +96,7 @@ function buildBlankState(): MetricsState {
     pinnedCardToOriginal: new Map(),
     unresolvedImportedPinnedCards: [],
     cardMetadataMap: {},
+    cardStateMap: {},
     cardStepIndex: {},
     visibleCardMap: new Map(),
     tagFilter: '',
@@ -108,6 +111,7 @@ function buildBlankState(): MetricsState {
     stepMinMax: {min: Infinity, max: -Infinity},
     isSettingsPaneOpen: false,
     isSlideoutMenuOpen: false,
+    tableEditorSelectedTab: DataTableMode.SINGLE,
   };
 }
 
@@ -286,7 +290,7 @@ export function provideMockCardSeriesData(
 ) {
   const cardMetadata = {...createCardMetadata(plugin), ...metadataOverride};
   const runId = cardMetadata.runId;
-  let runToSeries = null;
+  let runToSeries: RunToSeries | null = null;
   let steps: number[] = [];
 
   if (timeSeries !== null) {

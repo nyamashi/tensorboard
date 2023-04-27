@@ -14,6 +14,11 @@ limitations under the License.
 ==============================================================================*/
 import {TimeSelection} from '../widgets/card_fob/card_fob_types';
 import {HistogramMode} from '../widgets/histogram/histogram_types';
+import {
+  ColumnHeader,
+  ColumnHeaderType,
+  DataTableMode,
+} from './views/card_renderer/scalar_card_types';
 
 export {HistogramMode, TimeSelection};
 
@@ -24,9 +29,9 @@ export enum PluginType {
 }
 
 export enum XAxisType {
-  STEP,
-  RELATIVE,
-  WALL_TIME,
+  STEP = 'step',
+  RELATIVE = 'relative',
+  WALL_TIME = 'walltime',
 }
 
 export interface CardMetadata {
@@ -87,6 +92,16 @@ export interface URLDeserializedState {
     smoothing: number | null;
     tagFilter: string | null;
   };
+}
+
+export interface HeaderEditInfo {
+  dataTableMode: DataTableMode;
+  headers: ColumnHeader[];
+}
+
+export interface HeaderToggleInfo {
+  dataTableMode: DataTableMode;
+  headerType: ColumnHeaderType;
 }
 
 export const SCALARS_SMOOTHING_MIN = 0;

@@ -20,6 +20,7 @@ import {globalSettingsLoaded} from '../../persistent_settings';
 import {buildDeserializedState} from '../../routes/testing';
 import {DataLoadState} from '../../types/data';
 import {nextElementId} from '../../util/dom';
+import {TimeSelectionToggleAffordance} from '../../widgets/card_fob/card_fob_types';
 import * as actions from '../actions';
 import {
   PluginType,
@@ -43,12 +44,19 @@ import {
   CardId,
   CardMetadata,
   HistogramMode,
+  MinMaxStep,
+  NonPinnedCardId,
   TooltipSort,
   XAxisType,
 } from '../types';
+import {
+  ColumnHeaderType,
+  DataTableMode,
+} from '../views/card_renderer/scalar_card_types';
 import {reducers} from './metrics_reducers';
 import {getCardId, getPinnedCardId} from './metrics_store_internal_utils';
 import {
+  CardFeatureOverride,
   CardMetadataMap,
   MetricsState,
   RunToLoadState,
@@ -1203,6 +1211,30 @@ describe('metrics reducers', () => {
       expect(nextState.settings.cardMinWidth).toBe(400);
       expect(nextState.settingOverrides.cardMinWidth).toBeNull();
     });
+
+    it('updates hideEmptyCards', () => {
+      const prevState = buildMetricsState({
+        settings: buildMetricsSettingsState({
+          hideEmptyCards: false,
+        }),
+        settingOverrides: {},
+      });
+
+      const secondState = reducers(
+        prevState,
+        actions.metricsHideEmptyCardsToggled()
+      );
+
+      expect(secondState.settings.hideEmptyCards).toBe(false);
+      expect(secondState.settingOverrides.hideEmptyCards).toBe(true);
+
+      const thirdState = reducers(
+        secondState,
+        actions.metricsHideEmptyCardsToggled()
+      );
+      expect(thirdState.settings.hideEmptyCards).toBe(false);
+      expect(thirdState.settingOverrides.hideEmptyCards).toBe(false);
+    });
   });
 
   describe('loading time series data', () => {
@@ -1342,6 +1374,12 @@ describe('metrics reducers', () => {
             },
           },
         },
+        cardToPinnedCopy: new Map([
+          [
+            '{"plugin":"scalars","tag":"tagA","runId":null}',
+            'somePinnedCardId',
+          ],
+        ]),
       });
 
       const sample = 9;
@@ -1400,6 +1438,22 @@ describe('metrics reducers', () => {
           },
         },
       });
+
+      const expectedCardStateMap = {
+        '{"plugin":"scalars","tag":"tagA","runId":null}': {
+          dataMinMax: {
+            minStep: 0,
+            maxStep: 99,
+          },
+        },
+        somePinnedCardId: {
+          dataMinMax: {
+            minStep: 0,
+            maxStep: 99,
+          },
+        },
+      };
+      expect(nextState.cardStateMap).toEqual(expectedCardStateMap);
     });
 
     it('updates store on fetch loaded with some errors', () => {
@@ -1483,6 +1537,271 @@ describe('metrics reducers', () => {
 
       expect(nextState.timeSeriesData).toBe(beforeState.timeSeriesData);
       expect(nextState.timeSeriesData).toEqual(createTimeSeriesData());
+    });
+
+    describe('dataTableColumnEdited', () => {
+      it('edits range selection when dataTableMode is range', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+          singleSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.VALUE, enabled: true},
+            {type: ColumnHeaderType.STEP, enabled: true},
+            {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnEdited({
+            dataTableMode: DataTableMode.RANGE,
+            headers: [
+              {type: ColumnHeaderType.RUN, enabled: true},
+              {type: ColumnHeaderType.END_VALUE, enabled: true},
+              {type: ColumnHeaderType.START_VALUE, enabled: true},
+              {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+              {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+            ],
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+        ]);
+        expect(nextState.singleSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.VALUE, enabled: true},
+          {type: ColumnHeaderType.STEP, enabled: true},
+          {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+        ]);
+      });
+
+      it('edits single selection when dataTableMode is single', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+          singleSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.VALUE, enabled: true},
+            {type: ColumnHeaderType.STEP, enabled: true},
+            {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnEdited({
+            dataTableMode: DataTableMode.SINGLE,
+            headers: [
+              {type: ColumnHeaderType.RUN, enabled: true},
+              {type: ColumnHeaderType.STEP, enabled: true},
+              {type: ColumnHeaderType.VALUE, enabled: true},
+              {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+            ],
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+        ]);
+        expect(nextState.singleSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.STEP, enabled: true},
+          {type: ColumnHeaderType.VALUE, enabled: true},
+          {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+        ]);
+      });
+
+      it('ensures ordering keeps enabled headers first', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnEdited({
+            dataTableMode: DataTableMode.RANGE,
+            headers: [
+              {type: ColumnHeaderType.RUN, enabled: true},
+              {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+              {type: ColumnHeaderType.START_VALUE, enabled: true},
+              {type: ColumnHeaderType.END_VALUE, enabled: true},
+              {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            ],
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+        ]);
+      });
+    });
+
+    describe('dataTableColumnToggled', () => {
+      it('moves header down to the disabled headers when toggling to disabled', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnToggled({
+            dataTableMode: DataTableMode.RANGE,
+            headerType: ColumnHeaderType.RUN,
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.RUN, enabled: false},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+        ]);
+      });
+
+      it('moves header up to the enabled headers when toggling to enabled', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnToggled({
+            dataTableMode: DataTableMode.RANGE,
+            headerType: ColumnHeaderType.MAX_VALUE,
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+        ]);
+      });
+
+      it('only changes range selection headers when dataTableMode is RANGE', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+          singleSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.STEP, enabled: true},
+            {type: ColumnHeaderType.VALUE, enabled: true},
+            {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnToggled({
+            dataTableMode: DataTableMode.RANGE,
+            headerType: ColumnHeaderType.MAX_VALUE,
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+        ]);
+        expect(nextState.singleSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.STEP, enabled: true},
+          {type: ColumnHeaderType.VALUE, enabled: true},
+          {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+        ]);
+      });
+
+      it('only changes single selection headers when dataTableMode is SINGLE', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.START_VALUE, enabled: true},
+            {type: ColumnHeaderType.END_VALUE, enabled: true},
+            {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+          ],
+          singleSelectionHeaders: [
+            {type: ColumnHeaderType.RUN, enabled: true},
+            {type: ColumnHeaderType.STEP, enabled: true},
+            {type: ColumnHeaderType.VALUE, enabled: true},
+            {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+          ],
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.dataTableColumnToggled({
+            dataTableMode: DataTableMode.SINGLE,
+            headerType: ColumnHeaderType.STEP,
+          })
+        );
+
+        expect(nextState.rangeSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.START_VALUE, enabled: true},
+          {type: ColumnHeaderType.END_VALUE, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: false},
+        ]);
+        expect(nextState.singleSelectionHeaders).toEqual([
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.VALUE, enabled: true},
+          {type: ColumnHeaderType.STEP, enabled: false},
+          {type: ColumnHeaderType.RELATIVE_TIME, enabled: false},
+        ]);
+      });
     });
   });
 
@@ -1700,35 +2019,6 @@ describe('metrics reducers', () => {
           pinnedCopy1: buildStepIndexMetadata({index: 2}),
         });
       });
-
-      it('sets step index to null if time series is empty', () => {
-        const runToSeries = {};
-        let beforeState = createScalarCardLoadedState(
-          'card1',
-          runToSeries,
-          'tagA'
-        );
-        beforeState = {
-          ...stateWithPinnedCopy(beforeState, 'card1', 'pinnedCopy1'),
-          cardStepIndex: {
-            card1: buildStepIndexMetadata({index: 5}),
-            pinnedCopy1: buildStepIndexMetadata({index: 5}),
-          },
-        };
-
-        const action = actions.fetchTimeSeriesLoaded({
-          response: {
-            plugin: PluginType.SCALARS,
-            tag: 'tagA',
-            runToSeries: {},
-          },
-        });
-        const nextState = reducers(beforeState, action);
-        expect(nextState.cardStepIndex).toEqual({
-          card1: null,
-          pinnedCopy1: null,
-        });
-      });
     });
   });
 
@@ -1916,6 +2206,9 @@ describe('metrics reducers', () => {
         },
       };
       const beforeState = buildMetricsState({
+        cardStateMap: {
+          card1: {},
+        },
         cardMetadataMap: {
           card1: cardMetadata,
         },
@@ -1939,6 +2232,10 @@ describe('metrics reducers', () => {
 
       const expectedPinnedCopyId = getPinnedCardId('card1');
       const expectedState = buildMetricsState({
+        cardStateMap: {
+          card1: {},
+          [expectedPinnedCopyId]: {},
+        },
         cardMetadataMap: {
           card1: cardMetadata,
           [expectedPinnedCopyId]: cardMetadata,
@@ -1995,6 +2292,101 @@ describe('metrics reducers', () => {
     });
   });
 
+  describe('metricsCardStateUpdated', () => {
+    it('adds new cardId', () => {
+      const state = buildMetricsState();
+      const action = actions.metricsCardStateUpdated({
+        cardId: 'card1',
+        settings: {},
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {},
+      });
+    });
+
+    it('updates existing card settings', () => {
+      const state = buildMetricsState({
+        cardStateMap: {
+          card1: {
+            timeSelection: {
+              start: {step: 5},
+              end: null,
+            },
+            tableExpanded: true,
+          },
+        },
+      });
+      const action = actions.metricsCardStateUpdated({
+        cardId: 'card1',
+        settings: {
+          tableExpanded: false,
+        },
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {
+          timeSelection: {
+            start: {step: 5},
+            end: null,
+          },
+          tableExpanded: false,
+        },
+      });
+    });
+  });
+
+  describe('metricsCardFullSizeToggled', () => {
+    it('expands card', () => {
+      const state = buildMetricsState();
+      const action = actions.metricsCardFullSizeToggled({
+        cardId: 'card1',
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {fullWidth: true, tableExpanded: true},
+      });
+    });
+
+    it('expands card when table is already expanded', () => {
+      const state = buildMetricsState({
+        cardStateMap: {card1: {tableExpanded: true}},
+      });
+      const action = actions.metricsCardFullSizeToggled({
+        cardId: 'card1',
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {fullWidth: true, tableExpanded: true},
+      });
+    });
+
+    it('collapse card', () => {
+      const state = buildMetricsState({
+        cardStateMap: {card1: {fullWidth: true}},
+      });
+      const action = actions.metricsCardFullSizeToggled({
+        cardId: 'card1',
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {fullWidth: false, tableExpanded: false},
+      });
+    });
+
+    it('collapses card when table is already expanded', () => {
+      const state = buildMetricsState({
+        cardStateMap: {card1: {fullWidth: true, tableExpanded: true}},
+      });
+      const action = actions.metricsCardFullSizeToggled({
+        cardId: 'card1',
+      });
+      const nextState = reducers(state, action);
+      expect(nextState.cardStateMap).toEqual({
+        card1: {fullWidth: false, tableExpanded: false},
+      });
+    });
+  });
   describe('metricsTagFilterChanged', () => {
     it('sets the tagFilter state', () => {
       const state = buildMetricsState({tagFilter: 'foo'});
@@ -2412,6 +2804,67 @@ describe('metrics reducers', () => {
 
       expect(nextState.isSettingsPaneOpen).toBe(false);
     });
+
+    it('loads singleSelectionHeaders setting into the next state', () => {
+      const beforeState = buildMetricsState({
+        singleSelectionHeaders: [
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.SMOOTHED, enabled: true},
+          {type: ColumnHeaderType.VALUE, enabled: true},
+        ],
+      });
+
+      const nextState = reducers(
+        beforeState,
+        globalSettingsLoaded({
+          partialSettings: {
+            singleSelectionHeaders: [
+              {type: ColumnHeaderType.SMOOTHED, enabled: true},
+              {type: ColumnHeaderType.RUN, enabled: true},
+              {type: ColumnHeaderType.VALUE, enabled: false},
+            ],
+          },
+        })
+      );
+
+      expect(nextState.singleSelectionHeaders).toEqual([
+        {type: ColumnHeaderType.SMOOTHED, enabled: true},
+        {type: ColumnHeaderType.RUN, enabled: true},
+        {type: ColumnHeaderType.VALUE, enabled: false},
+      ]);
+    });
+
+    it('loads rangeSelectionHeaders setting into the next state', () => {
+      const beforeState = buildMetricsState({
+        rangeSelectionHeaders: [
+          {type: ColumnHeaderType.RUN, enabled: true},
+          {type: ColumnHeaderType.MIN_VALUE, enabled: true},
+          {type: ColumnHeaderType.MAX_VALUE, enabled: true},
+          {type: ColumnHeaderType.MEAN, enabled: false},
+        ],
+      });
+
+      const nextState = reducers(
+        beforeState,
+        globalSettingsLoaded({
+          partialSettings: {
+            rangeSelectionHeaders: [
+              {type: ColumnHeaderType.RUN, enabled: true},
+              {type: ColumnHeaderType.MEAN, enabled: true},
+              {type: ColumnHeaderType.MAX_VALUE, enabled: true},
+              {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+            ],
+          },
+        })
+      );
+
+      expect(nextState.rangeSelectionHeaders).toEqual([
+        {type: ColumnHeaderType.RUN, enabled: true},
+        {type: ColumnHeaderType.MEAN, enabled: true},
+        {type: ColumnHeaderType.MAX_VALUE, enabled: true},
+        {type: ColumnHeaderType.MIN_VALUE, enabled: false},
+      ]);
+    });
   });
 
   it('loads Step Selector Setting into the next state', () => {
@@ -2551,21 +3004,6 @@ describe('metrics reducers', () => {
         });
       });
 
-      it('keeps linkedTimeEnabled disabled if previously disabled', () => {
-        const beforeState = buildMetricsState({
-          linkedTimeEnabled: false,
-        });
-
-        const nextState = reducers(
-          beforeState,
-          actions.timeSelectionChanged({
-            timeSelection: {start: {step: 2}, end: null},
-          })
-        );
-
-        expect(nextState.linkedTimeEnabled).toBe(false);
-      });
-
       it('flips `end` to `start` if new start is greater than new end', () => {
         const beforeState = buildMetricsState({
           linkedTimeSelection: null,
@@ -2588,35 +3026,10 @@ describe('metrics reducers', () => {
         });
       });
 
-      it('sets `rangeSelectionEnabled` to true when `endStep` is present and linked time selection is null', () => {
+      it('sets `rangeSelectionEnabled` to true when `endStep` is present', () => {
         const beforeState = buildMetricsState({
           rangeSelectionEnabled: false,
-          linkedTimeSelection: null,
-        });
-
-        const nextState = reducers(
-          beforeState,
-          actions.timeSelectionChanged({
-            timeSelection: {
-              start: {step: 2},
-              end: {step: 5},
-            },
-          })
-        );
-
-        expect(nextState.rangeSelectionEnabled).toEqual(true);
-      });
-
-      // This test case represents <tb-range-input> renders range slider from single slider.
-      it('sets `rangeSelectionEnabled` to true when `endStep` is present linked time selection is not null', () => {
-        const beforeState = buildMetricsState({
-          rangeSelectionEnabled: false,
-          linkedTimeSelection: {
-            start: {step: 0},
-            // When single slider is rendered, the end step is set to step max.
-            // Here set it as an arbitrary number.
-            end: {step: 100},
-          },
+          linkedTimeEnabled: true,
         });
 
         const nextState = reducers(
@@ -2635,10 +3048,7 @@ describe('metrics reducers', () => {
       it('sets `rangeSelectionEnabled` to true when `endStep` is 0', () => {
         const beforeState = buildMetricsState({
           rangeSelectionEnabled: false,
-          linkedTimeSelection: {
-            start: {step: 2},
-            end: {step: 100},
-          },
+          linkedTimeEnabled: true,
         });
 
         const nextState = reducers(
@@ -2654,10 +3064,10 @@ describe('metrics reducers', () => {
         expect(nextState.rangeSelectionEnabled).toEqual(true);
       });
 
-      it('keeps `rangeSelectionEnabled` to be false when only sets `startStep`', () => {
+      it('sets `rangeSelectionEnabled` to false when only sets `startStep`', () => {
         const beforeState1 = buildMetricsState({
-          rangeSelectionEnabled: false,
-          linkedTimeSelection: null,
+          rangeSelectionEnabled: true,
+          linkedTimeEnabled: true,
         });
 
         const nextState1 = reducers(
@@ -2671,6 +3081,25 @@ describe('metrics reducers', () => {
         );
 
         expect(nextState1.rangeSelectionEnabled).toEqual(false);
+      });
+
+      it('keeps `rangeSelectionEnabled` to false when linked time disabled', () => {
+        const beforeState = buildMetricsState({
+          rangeSelectionEnabled: false,
+          linkedTimeEnabled: false,
+        });
+
+        const nextState = reducers(
+          beforeState,
+          actions.timeSelectionChanged({
+            timeSelection: {
+              start: {step: 2},
+              end: {step: 10},
+            },
+          })
+        );
+
+        expect(nextState.rangeSelectionEnabled).toEqual(false);
       });
 
       it('sets `cardStepIndex` when step matches linked time selection', () => {
@@ -2751,28 +3180,109 @@ describe('metrics reducers', () => {
           [imageCardId]: buildStepIndexMetadata({index: 2}),
         });
       });
-    });
 
-    it('sets `rangeSelectionEnabled` to false when `endStep` is undefined', () => {
-      const beforeState = buildMetricsState({
-        rangeSelectionEnabled: true,
-        linkedTimeSelection: {
-          start: {step: 2},
-          end: {step: 100},
-        },
+      it('adds a new value to an existing cardStateMap', () => {
+        const state1 = buildMetricsState({
+          cardStateMap: {
+            card1: {},
+          },
+        });
+        const state2 = reducers(
+          state1,
+          actions.timeSelectionChanged({
+            cardId: 'card2',
+            timeSelection: {
+              start: {step: 1},
+              end: null,
+            },
+          })
+        );
+
+        expect(state2.cardStateMap).toEqual({
+          card1: {},
+          card2: {
+            timeSelection: {
+              start: {step: 1},
+              end: null,
+            },
+            stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+            rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_DISABLED,
+          },
+        });
       });
 
-      const nextState = reducers(
-        beforeState,
-        actions.timeSelectionChanged({
-          timeSelection: {
-            start: {step: 3},
-            end: null,
+      it('overrides an existing cardStateMap timeSelection', () => {
+        const state1 = buildMetricsState({
+          cardStateMap: {
+            card1: {
+              dataMinMax: {
+                minStep: 0,
+                maxStep: 1000,
+              },
+              timeSelection: {
+                start: {step: 0},
+                end: {step: 100},
+              },
+            },
           },
-        })
-      );
+        });
 
-      expect(nextState.rangeSelectionEnabled).toEqual(false);
+        const state2 = reducers(
+          state1,
+          actions.timeSelectionChanged({
+            cardId: 'card1',
+            timeSelection: {
+              start: {step: 1},
+              end: {step: 5},
+            },
+          })
+        );
+
+        expect(state2.cardStateMap).toEqual({
+          card1: {
+            dataMinMax: {
+              minStep: 0,
+              maxStep: 1000,
+            },
+            timeSelection: {
+              start: {step: 1},
+              end: {step: 5},
+            },
+            stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+            rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+          },
+        });
+      });
+
+      it('enables card specific range selection if an end value is provided', () => {
+        const state1 = buildMetricsState({
+          cardStateMap: {
+            card1: {},
+          },
+        });
+        const state2 = reducers(
+          state1,
+          actions.timeSelectionChanged({
+            cardId: 'card2',
+            timeSelection: {
+              start: {step: 1},
+              end: {step: 5},
+            },
+          })
+        );
+
+        expect(state2.cardStateMap).toEqual({
+          card1: {},
+          card2: {
+            timeSelection: {
+              start: {step: 1},
+              end: {step: 5},
+            },
+            stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+            rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+          },
+        });
+      });
     });
 
     describe('#timeSelectionCleared', () => {
@@ -2822,8 +3332,27 @@ describe('metrics reducers', () => {
         expect(state2.rangeSelectionEnabled).toBe(false);
       });
 
-      it('generates a value for linkedTimeSelection when needed', () => {
-        const state1 = buildMetricsState();
+      it('ignores linkedTimeSelection when toggled on, if not needed', () => {
+        const state1 = buildMetricsState({
+          linkedTimeSelection: {
+            start: {step: 100},
+            end: {step: 1000},
+          },
+          rangeSelectionEnabled: false,
+        });
+
+        const state2 = reducers(state1, actions.rangeSelectionToggled({}));
+        expect(state2.linkedTimeSelection).toEqual({
+          start: {step: 100},
+          end: {step: 1000},
+        });
+      });
+
+      it('generates linkedTimeSelection when toggled on, if needed', () => {
+        const state1 = buildMetricsState({
+          linkedTimeSelection: null,
+          rangeSelectionEnabled: false,
+        });
 
         const state2 = reducers(state1, actions.rangeSelectionToggled({}));
         expect(state2.linkedTimeSelection).toEqual({
@@ -2831,9 +3360,153 @@ describe('metrics reducers', () => {
           end: {step: -Infinity},
         });
       });
+
+      it('adds linkedTimeSelection.end when toggled on, if needed', () => {
+        const state1 = buildMetricsState({
+          linkedTimeSelection: {
+            start: {step: 100},
+            end: null,
+          },
+          rangeSelectionEnabled: false,
+        });
+
+        const state2 = reducers(state1, actions.rangeSelectionToggled({}));
+        expect(state2.linkedTimeSelection).toEqual({
+          start: {step: 100},
+          end: {step: -Infinity},
+        });
+      });
+
+      it('removes linkedTimeSelection.end when toggled off, if needed', () => {
+        const state1 = buildMetricsState({
+          linkedTimeSelection: {
+            start: {step: 100},
+            end: {step: 1000},
+          },
+          rangeSelectionEnabled: true,
+        });
+
+        const state2 = reducers(state1, actions.rangeSelectionToggled({}));
+        expect(state2.linkedTimeSelection).toEqual({
+          start: {step: 100},
+          end: null,
+        });
+      });
+
+      it('sets all card specific overrides to default', () => {
+        const state1 = buildMetricsState({
+          linkedTimeSelection: {
+            start: {step: 100},
+            end: {step: 1000},
+          },
+          rangeSelectionEnabled: false,
+          cardStateMap: {
+            card1: {
+              rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+              stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+            },
+            card2: {
+              rangeSelectionOverride: CardFeatureOverride.OVERRIDE_AS_DISABLED,
+              stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_DISABLED,
+            },
+            card3: {},
+          },
+        });
+        const state2 = reducers(state1, actions.rangeSelectionToggled({}));
+        expect(state2.cardStateMap).toEqual({
+          card1: {
+            rangeSelectionOverride: CardFeatureOverride.NONE,
+            stepSelectionOverride: CardFeatureOverride.NONE,
+          },
+          card2: {
+            rangeSelectionOverride: CardFeatureOverride.NONE,
+            stepSelectionOverride: CardFeatureOverride.NONE,
+          },
+          card3: {
+            rangeSelectionOverride: CardFeatureOverride.NONE,
+            stepSelectionOverride: CardFeatureOverride.NONE,
+          },
+        });
+      });
     });
 
-    describe('#linkedTimeEnabled', () => {
+    describe('#cardMinMaxChanged', () => {
+      it('adds a new value to an existing cardToMinMax map', () => {
+        const initialCardToMinMax = new Map<NonPinnedCardId, MinMaxStep>();
+        initialCardToMinMax.set('card1', {
+          minStep: 0,
+          maxStep: 100,
+        });
+        const state1 = buildMetricsState({
+          cardStateMap: {
+            card1: {},
+          },
+        });
+        const state2 = reducers(
+          state1,
+          actions.cardMinMaxChanged({
+            cardId: 'card2',
+            minMax: {
+              minStep: 1,
+              maxStep: 5,
+            },
+          })
+        );
+
+        expect(state2.cardStateMap).toEqual({
+          card1: {},
+          card2: {
+            userMinMax: {
+              minStep: 1,
+              maxStep: 5,
+            },
+          },
+        });
+      });
+
+      it('overrides an existing cards min max', () => {
+        const state1 = buildMetricsState({
+          cardStateMap: {
+            card1: {
+              userMinMax: {
+                minStep: 0,
+                maxStep: 100,
+              },
+              timeSelection: {
+                start: {step: 0},
+                end: {step: 5},
+              },
+            },
+          },
+        });
+
+        const state2 = reducers(
+          state1,
+          actions.cardMinMaxChanged({
+            cardId: 'card1',
+            minMax: {
+              minStep: 1,
+              maxStep: 5,
+            },
+          })
+        );
+
+        expect(state2.cardStateMap).toEqual({
+          card1: {
+            userMinMax: {
+              minStep: 1,
+              maxStep: 5,
+            },
+            timeSelection: {
+              start: {step: 0},
+              end: {step: 5},
+            },
+          },
+        });
+      });
+    });
+
+    describe('#linkedTimeToggled', () => {
       const imageCardId = 'test image card id "plugin":"images"';
       const cardMetadataMap = {
         [imageCardId]: {
@@ -2875,6 +3548,18 @@ describe('metrics reducers', () => {
 
         const state2 = reducers(state1, actions.linkedTimeToggled({}));
         expect(state2.stepSelectorEnabled).toBe(true);
+        expect(state2.linkedTimeEnabled).toBe(false);
+      });
+
+      it('keeps rangeSelection when linkedTime is disabled', () => {
+        const state1 = buildMetricsState({
+          rangeSelectionEnabled: true,
+          stepSelectorEnabled: true,
+          linkedTimeEnabled: true,
+        });
+
+        const state2 = reducers(state1, actions.linkedTimeToggled({}));
+        expect(state2.rangeSelectionEnabled).toBe(true);
         expect(state2.linkedTimeEnabled).toBe(false);
       });
 
@@ -3017,57 +3702,128 @@ describe('metrics reducers', () => {
           end: null,
         });
       });
+
+      it('enables rangeSelection if linkedTimeSelection has an end step', () => {
+        const state1 = buildMetricsState({
+          stepSelectorEnabled: true,
+          rangeSelectionEnabled: false,
+          linkedTimeEnabled: false,
+          linkedTimeSelection: {
+            start: {step: 5},
+            end: {step: 10},
+          },
+        });
+
+        const state2 = reducers(state1, actions.linkedTimeToggled({}));
+        expect(state2.rangeSelectionEnabled).toBeTrue();
+        expect(state2.linkedTimeEnabled).toBeTrue();
+      });
+
+      it('does not enable rangeSelection if linkedTimeSelection does not have an end step', () => {
+        const state1 = buildMetricsState({
+          stepSelectorEnabled: true,
+          rangeSelectionEnabled: false,
+          linkedTimeEnabled: false,
+          linkedTimeSelection: {
+            start: {step: 5},
+            end: null,
+          },
+        });
+
+        const state2 = reducers(state1, actions.linkedTimeToggled({}));
+        expect(state2.linkedTimeEnabled).toBeTrue();
+        expect(state2.rangeSelectionEnabled).toBeFalse();
+      });
     });
   });
 
   describe('step selector features', () => {
-    it('toggles whether stepSelector is enabled or not', () => {
-      const state1 = buildMetricsState({
-        stepSelectorEnabled: false,
-      });
-
-      const state2 = reducers(state1, actions.stepSelectorToggled({}));
-      expect(state2.stepSelectorEnabled).toBe(true);
-
-      const state3 = reducers(state2, actions.stepSelectorToggled({}));
-      expect(state3.stepSelectorEnabled).toBe(false);
-    });
-
-    it('disables linkedTime when stepSelector is disabled', () => {
+    it('does not enable and disable stepSelection when toggled by fobs', () => {
       const state1 = buildMetricsState({
         stepSelectorEnabled: false,
         linkedTimeEnabled: false,
       });
 
-      const state2 = reducers(state1, actions.stepSelectorToggled({}));
-      expect(state2.stepSelectorEnabled).toBe(true);
-      expect(state2.linkedTimeEnabled).toBe(false);
-
-      const state3 = buildMetricsState({
-        stepSelectorEnabled: true,
-        linkedTimeEnabled: true,
-      });
-      const state4 = reducers(state3, actions.stepSelectorToggled({}));
-      expect(state4.stepSelectorEnabled).toBe(false);
-      expect(state2.linkedTimeEnabled).toBe(false);
+      const state2 = reducers(
+        state1,
+        actions.stepSelectorToggled({
+          affordance: TimeSelectionToggleAffordance.FOB_DESELECT,
+        })
+      );
+      expect(state2.stepSelectorEnabled).toBe(false);
     });
 
-    it('disables rangeSelection when stepSelector is disabled', () => {
+    it('enables and disables stepSelection when toggled by check box', () => {
       const state1 = buildMetricsState({
         stepSelectorEnabled: false,
-        rangeSelectionEnabled: true,
+        linkedTimeEnabled: false,
       });
-      const state2 = reducers(state1, actions.stepSelectorToggled({}));
-      expect(state2.stepSelectorEnabled).toBe(true);
-      expect(state2.rangeSelectionEnabled).toBe(true);
 
-      const state3 = buildMetricsState({
+      const state2 = reducers(
+        state1,
+        actions.stepSelectorToggled({
+          affordance: TimeSelectionToggleAffordance.CHECK_BOX,
+        })
+      );
+      expect(state2.stepSelectorEnabled).toBe(true);
+
+      const state3 = reducers(
+        state2,
+        actions.stepSelectorToggled({
+          affordance: TimeSelectionToggleAffordance.CHECK_BOX,
+        })
+      );
+      expect(state3.stepSelectorEnabled).toBe(false);
+    });
+
+    it('disables linkedTime and rangeSelection when stepSelector is toggled off', () => {
+      const state1 = buildMetricsState({
         stepSelectorEnabled: true,
+        linkedTimeEnabled: true,
         rangeSelectionEnabled: true,
       });
-      const state4 = reducers(state3, actions.stepSelectorToggled({}));
-      expect(state4.stepSelectorEnabled).toBe(false);
-      expect(state4.rangeSelectionEnabled).toBe(false);
+
+      const state2 = reducers(state1, actions.stepSelectorToggled({}));
+      expect(state2.stepSelectorEnabled).toBe(false);
+      expect(state2.linkedTimeEnabled).toBe(false);
+      expect(state2.rangeSelectionEnabled).toBe(false);
+    });
+
+    it('disables card specific step selection when cardId is provided', () => {
+      const prevState = buildMetricsState();
+      const nextState = reducers(
+        prevState,
+        actions.stepSelectorToggled({cardId: 'card1'})
+      );
+      expect(nextState.cardStateMap['card1'].stepSelectionOverride).toEqual(
+        CardFeatureOverride.OVERRIDE_AS_DISABLED
+      );
+    });
+
+    it('removes all card specific overrides when no card id is provided', () => {
+      const prevState = buildMetricsState({
+        cardStateMap: {
+          card1: {
+            stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_ENABLED,
+          },
+          card2: {
+            stepSelectionOverride: CardFeatureOverride.OVERRIDE_AS_DISABLED,
+          },
+          card3: {},
+        },
+      });
+      const nextState = reducers(prevState, actions.stepSelectorToggled({}));
+      expect(nextState.cardStateMap).toEqual({
+        card1: {
+          stepSelectionOverride: CardFeatureOverride.NONE,
+        },
+        card2: {
+          stepSelectionOverride: CardFeatureOverride.NONE,
+        },
+        card3: {
+          stepSelectionOverride: CardFeatureOverride.NONE,
+        },
+      });
     });
   });
 
@@ -3154,6 +3910,75 @@ describe('metrics reducers', () => {
 
       const state3 = reducers(state2, actions.metricsSettingsPaneClosed());
       expect(state3.isSettingsPaneOpen).toBe(false);
+    });
+  });
+
+  describe('Metrics Slideout Menu', () => {
+    describe('#metricsSlideoutMenuToggled', () => {
+      it('toggles the isSlideoutMenuOpen state', () => {
+        const state1 = buildMetricsState({
+          isSlideoutMenuOpen: false,
+        });
+
+        const state2 = reducers(state1, actions.metricsSlideoutMenuToggled());
+        expect(state2.isSlideoutMenuOpen).toBe(true);
+
+        const state3 = reducers(state2, actions.metricsSlideoutMenuToggled());
+        expect(state3.isSlideoutMenuOpen).toBe(false);
+      });
+    });
+
+    describe('#metricsSlideoutMenuOpened', () => {
+      it('sets the isSlideoutMenuOpen and isSettingsPaneOpen to true and always updates tableEditorSelectedTab', () => {
+        const state1 = buildMetricsState({
+          isSlideoutMenuOpen: false,
+          isSettingsPaneOpen: false,
+        });
+
+        const state2 = reducers(
+          state1,
+          actions.metricsSlideoutMenuOpened({mode: DataTableMode.RANGE})
+        );
+        expect(state2.isSlideoutMenuOpen).toBe(true);
+        expect(state2.isSettingsPaneOpen).toBe(true);
+        expect(state2.tableEditorSelectedTab).toBe(DataTableMode.RANGE);
+
+        const state3 = reducers(
+          state2,
+          actions.metricsSlideoutMenuOpened({mode: DataTableMode.SINGLE})
+        );
+        expect(state3.isSlideoutMenuOpen).toBe(true);
+        expect(state3.isSettingsPaneOpen).toBe(true);
+        expect(state3.tableEditorSelectedTab).toBe(DataTableMode.SINGLE);
+      });
+
+      it('leaves isSettingsPaneOpen as true when it is already set', () => {
+        const state1 = buildMetricsState({
+          isSlideoutMenuOpen: false,
+          isSettingsPaneOpen: true,
+        });
+
+        const state2 = reducers(
+          state1,
+          actions.metricsSlideoutMenuOpened({mode: DataTableMode.SINGLE})
+        );
+        expect(state2.isSlideoutMenuOpen).toBe(true);
+        expect(state2.isSettingsPaneOpen).toBe(true);
+      });
+    });
+
+    describe('#metricsSlideoutMenuClosed', () => {
+      it('sets the isSlideoutMenuOpen to false', () => {
+        const state1 = buildMetricsState({
+          isSlideoutMenuOpen: true,
+        });
+
+        const state2 = reducers(state1, actions.metricsSlideoutMenuClosed());
+        expect(state2.isSlideoutMenuOpen).toBe(false);
+
+        const state3 = reducers(state1, actions.metricsSlideoutMenuClosed());
+        expect(state3.isSlideoutMenuOpen).toBe(false);
+      });
     });
   });
 });

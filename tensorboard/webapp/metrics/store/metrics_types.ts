@@ -30,13 +30,17 @@ import {
   CardMetadata,
   CardUniqueInfo,
   HistogramMode,
+  MinMaxStep,
   NonPinnedCardId,
   PinnedCardId,
   TimeSelection,
   TooltipSort,
   XAxisType,
 } from '../types';
-import {ColumnHeader} from '../views/card_renderer/scalar_card_types';
+import {
+  ColumnHeader,
+  DataTableMode,
+} from '../views/card_renderer/scalar_card_types';
 
 export const METRICS_FEATURE_KEY = 'metrics';
 
@@ -125,6 +129,24 @@ export type CardMetadataMap = Record<
   CardMetadata
 >;
 
+export enum CardFeatureOverride {
+  NONE,
+  OVERRIDE_AS_ENABLED,
+  OVERRIDE_AS_DISABLED,
+}
+
+export type CardState = {
+  dataMinMax: MinMaxStep;
+  userMinMax: MinMaxStep;
+  timeSelection: TimeSelection;
+  stepSelectionOverride: CardFeatureOverride;
+  rangeSelectionOverride: CardFeatureOverride;
+  tableExpanded: boolean;
+  fullWidth: boolean;
+};
+
+export type CardStateMap = Record<CardId, Partial<CardState>>;
+
 /**
  * A step index in a card could be set from actions or "modified" from the closest step index
  * set when linked time selection changed. When it is set from linked time selection, closest is true.
@@ -170,6 +192,7 @@ export interface MetricsNamespacedState {
    */
   unresolvedImportedPinnedCards: CardUniqueInfo[];
   cardMetadataMap: CardMetadataMap;
+  cardStateMap: CardStateMap;
   cardStepIndex: CardStepIndexMap;
   tagFilter: string;
   tagGroupExpanded: Map<string, boolean>;
@@ -195,6 +218,7 @@ export interface MetricsSettings {
   ignoreOutliers: boolean;
   xAxisType: XAxisType;
   scalarSmoothing: number;
+  hideEmptyCards: boolean;
   /**
    * https://github.com/tensorflow/tensorboard/issues/3732
    *
@@ -223,6 +247,7 @@ export interface MetricsNonNamespacedState {
   timeSeriesData: TimeSeriesData;
   isSettingsPaneOpen: boolean;
   isSlideoutMenuOpen: boolean;
+  tableEditorSelectedTab: DataTableMode;
   // Default settings. For the legacy reasons, we cannot change the name of the
   // prop. It either is set by application or a user via settings storage.
   settings: MetricsSettings;
@@ -247,6 +272,7 @@ export const METRICS_SETTINGS_DEFAULT: MetricsSettings = {
   tooltipSort: TooltipSort.ALPHABETICAL,
   ignoreOutliers: true,
   xAxisType: XAxisType.STEP,
+  hideEmptyCards: true,
   scalarSmoothing: 0.6,
   scalarPartitionNonMonotonicX: false,
   imageBrightnessInMilli: 1000,

@@ -16,8 +16,9 @@ limitations under the License.
 import {TestBed} from '@angular/core/testing';
 import {provideMockActions} from '@ngrx/effects/testing';
 import {Action, Store} from '@ngrx/store';
-import {MockStore, provideMockStore} from '@ngrx/store/testing';
+import {MockStore} from '@ngrx/store/testing';
 import {ReplaySubject} from 'rxjs';
+import {provideMockTbStore} from '../../testing/utils';
 import {
   TBFeatureFlagTestingModule,
   TestingTBFeatureFlagDataSource,
@@ -28,8 +29,6 @@ import {
   featureFlagOverridesReset,
   partialFeatureFlagsLoaded,
 } from '../actions/feature_flag_actions';
-import {ForceSvgDataSource} from '../force_svg_data_source';
-import {ForceSvgDataSourceModule} from '../force_svg_data_source_module';
 import {FeatureFlagMetadataMap} from '../store/feature_flag_metadata';
 import {
   getFeatureFlags,
@@ -39,25 +38,23 @@ import {
 } from '../store/feature_flag_selectors';
 import {State} from '../store/feature_flag_types';
 import {buildFeatureFlag} from '../testing';
-import {FeatureFlags} from '../types';
 import {FeatureFlagEffects} from './feature_flag_effects';
 
 describe('feature_flag_effects', () => {
   let actions: ReplaySubject<Action>;
   let store: MockStore<State>;
   let dataSource: TestingTBFeatureFlagDataSource;
-  let forceSvgDataSource: ForceSvgDataSource;
   let effects: FeatureFlagEffects;
   let setPolymerFeatureFlagsSpy: jasmine.Spy;
 
   beforeEach(async () => {
     actions = new ReplaySubject<Action>(1);
     await TestBed.configureTestingModule({
-      imports: [TBFeatureFlagTestingModule, ForceSvgDataSourceModule],
+      imports: [TBFeatureFlagTestingModule],
       providers: [
         provideMockActions(actions),
         FeatureFlagEffects,
-        provideMockStore(),
+        provideMockTbStore(),
       ],
     }).compileComponents();
 
@@ -73,7 +70,6 @@ describe('feature_flag_effects', () => {
     effects = TestBed.inject(FeatureFlagEffects);
     store = TestBed.inject<Store<State>>(Store) as MockStore<State>;
     dataSource = TestBed.inject(TestingTBFeatureFlagDataSource);
-    forceSvgDataSource = TestBed.inject(ForceSvgDataSource);
     store.overrideSelector(getIsAutoDarkModeAllowed, false);
     store.overrideSelector(getFeatureFlagsMetadata, FeatureFlagMetadataMap);
   });
@@ -110,56 +106,6 @@ describe('feature_flag_effects', () => {
           }),
         }),
       ]);
-    });
-
-    it('calls updateForceSvgFlag when getFeatures returns a value for forceSvg', () => {
-      spyOn(dataSource, 'getFeatures').and.returnValue(
-        buildFeatureFlag({
-          forceSvg: true,
-        })
-      );
-      let updateSpy = spyOn(
-        forceSvgDataSource,
-        'updateForceSvgFlag'
-      ).and.stub();
-
-      actions.next(effects.ngrxOnInitEffects());
-
-      expect(recordedActions).toEqual([
-        partialFeatureFlagsLoaded({
-          features: buildFeatureFlag({
-            forceSvg: true,
-          }),
-        }),
-      ]);
-
-      expect(updateSpy).toHaveBeenCalledOnceWith(true);
-    });
-
-    it('gets forceSVG flag from ForceSvgDataSource when getFeatures returns no value for forceSvg', () => {
-      let featureFlags: Partial<FeatureFlags> = buildFeatureFlag();
-      delete featureFlags.forceSvg;
-      spyOn(dataSource, 'getFeatures').and.returnValue(featureFlags);
-      let updateSpy = spyOn(
-        forceSvgDataSource,
-        'updateForceSvgFlag'
-      ).and.stub();
-      let getSpy = spyOn(forceSvgDataSource, 'getForceSvgFlag').and.returnValue(
-        true
-      );
-
-      actions.next(effects.ngrxOnInitEffects());
-
-      expect(recordedActions).toEqual([
-        partialFeatureFlagsLoaded({
-          features: buildFeatureFlag({
-            forceSvg: true,
-          }),
-        }),
-      ]);
-
-      expect(getSpy).toHaveBeenCalledOnceWith();
-      expect(updateSpy).toHaveBeenCalledTimes(0);
     });
   });
 

@@ -62,7 +62,7 @@ limitations under the License.
         (click)="onFullSizeToggle.emit()"
       >
         <mat-icon
-          [svgIcon]="showFullSize ? 'fullscreen_exit_24px' : 'fullscreen_24px'"
+          [svgIcon]="showFullWidth ? 'fullscreen_exit_24px' : 'fullscreen_24px'"
         ></mat-icon>
       </button>
       <!-- overflow menu cannot use mat-tooltip since it interferes with the mat-menu. -->
@@ -93,10 +93,19 @@ limitations under the License.
           <mat-icon svgIcon="get_app_24px"></mat-icon>
           <span>Download data</span>
         </button>
+        <button
+          *ngIf="columnCustomizationEnabled"
+          mat-menu-item
+          (click)="openTableEditMenu()"
+          aria-label="Open menu to edit data table columns"
+        >
+          <mat-icon svgIcon="edit_24px"></mat-icon>
+          <span>Edit Table Columns</span>
+        </button>
       </mat-menu>
     </span>
   </div>
-  <div class="chart-container">
+  <div #chartContainer class="chart-container">
     <mat-spinner
       diameter="18"
       *ngIf="loadState === DataLoadState.LOADING"
@@ -175,7 +184,13 @@ limitations under the License.
   </div>
 </div>
 <ng-container *ngIf="showDataTable()">
-  <div class="data-table-container">
+  <div
+    #dataTableContainer
+    [ngClass]="{
+      'data-table-container': true,
+      'expanded': cardState!.tableExpanded
+    }"
+  >
     <scalar-card-data-table
       [chartMetadataMap]="chartMetadataMap"
       [dataSeries]="dataSeries"
@@ -185,9 +200,24 @@ limitations under the License.
       [columnCustomizationEnabled]="columnCustomizationEnabled"
       [smoothingEnabled]="smoothingEnabled"
       (sortDataBy)="sortDataBy($event)"
-      (orderColumns)="reorderColumnHeaders.emit($event)"
+      (editColumnHeaders)="editColumnHeaders.emit($event)"
     >
     </scalar-card-data-table>
+  </div>
+  <div class="bottom-area">
+    <button
+      *ngIf="canExpandTable()"
+      mat-icon-button
+      i18n-aria-label="Expand Table"
+      class="expand-button"
+      aria-label="Expand Table"
+      [title]="shouldExpandTable() ? 'Expand Table' : 'Collapse Table'"
+      (click)="toggleTableExpanded()"
+    >
+      <mat-icon
+        [svgIcon]="shouldExpandTable() ? 'expand_more_24px' : 'expand_less_24px'"
+      ></mat-icon>
+    </button>
   </div>
 </ng-container>
 <ng-template
@@ -244,7 +274,6 @@ limitations under the License.
       [minMaxHorizontalViewExtend]="viewExtent.x"
       [minMaxStep]="minMaxStep"
       [axisSize]="domDim.width"
-      [rangeSelectionEnabled]="rangeSelectionEnabled"
       [isProspectiveFobFeatureEnabled]="isProspectiveFobFeatureEnabled"
       (onTimeSelectionChanged)="onTimeSelectionChanged.emit($event)"
       (onTimeSelectionToggled)="onFobRemoved()"

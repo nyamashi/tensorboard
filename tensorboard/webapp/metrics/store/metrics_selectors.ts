@@ -13,7 +13,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 import {createFeatureSelector, createSelector} from '@ngrx/store';
-import {State} from '../../app_state';
 import {DataLoadState, LoadState} from '../../types/data';
 import {ElementId} from '../../util/dom';
 import {DeepReadonly} from '../../util/types';
@@ -30,10 +29,20 @@ import {
   TooltipSort,
   XAxisType,
 } from '../types';
-import {ColumnHeader} from '../views/card_renderer/scalar_card_types';
+import {
+  ColumnHeader,
+  DataTableMode,
+  MinMaxStep,
+} from '../views/card_renderer/scalar_card_types';
+import {formatTimeSelection} from '../views/card_renderer/utils';
 import * as storeUtils from './metrics_store_internal_utils';
 import {
+  getCardSelectionStateToBoolean,
+  getMinMaxStepFromCardState,
+} from './metrics_store_internal_utils';
+import {
   CardMetadataMap,
+  CardStateMap,
   CardStepIndexMetaData,
   MetricsSettings,
   MetricsState,
@@ -42,9 +51,8 @@ import {
   TagMetadata,
 } from './metrics_types';
 
-const selectMetricsState = createFeatureSelector<State, MetricsState>(
-  METRICS_FEATURE_KEY
-);
+const selectMetricsState =
+  createFeatureSelector<MetricsState>(METRICS_FEATURE_KEY);
 
 export const getMetricsTagMetadataLoadState = createSelector(
   selectMetricsState,
@@ -139,6 +147,13 @@ export const getCardMetadata = createSelector(
       return null;
     }
     return metadataMap[cardId];
+  }
+);
+
+export const getCardStateMap = createSelector(
+  selectMetricsState,
+  (state: MetricsState): CardStateMap => {
+    return state.cardStateMap;
   }
 );
 
@@ -318,6 +333,11 @@ export const getMetricsHistogramMode = createSelector(
   (settings): HistogramMode => settings.histogramMode
 );
 
+export const getMetricsHideEmptyCards = createSelector(
+  selectSettings,
+  (settings): boolean => settings.hideEmptyCards
+);
+
 export const getMetricsScalarSmoothing = createSelector(
   selectSettings,
   (settings): number => settings.scalarSmoothing
@@ -444,10 +464,7 @@ export const getMetricsLinkedTimeSelection = createSelector(
     linkedTimeSelection: TimeSelection
   ): TimeSelection | null => {
     if (!state.linkedTimeEnabled) return null;
-    if (state.rangeSelectionEnabled) {
-      return linkedTimeSelection;
-    }
-    return {...linkedTimeSelection, end: null};
+    return linkedTimeSelection;
   }
 );
 
@@ -466,4 +483,122 @@ export const isMetricsSettingsPaneOpen = createSelector(
 export const isMetricsSlideoutMenuOpen = createSelector(
   selectMetricsState,
   (state): boolean => state.isSlideoutMenuOpen
+);
+
+export const getTableEditorSelectedTab = createSelector(
+  selectMetricsState,
+  (state): DataTableMode => state.tableEditorSelectedTab
+);
+
+export const getMetricsCardRangeSelectionEnabled = createSelector(
+  getMetricsRangeSelectionEnabled,
+  getMetricsLinkedTimeEnabled,
+  getCardStateMap,
+  (
+    globalRangeSelectionEnabled: boolean,
+    linkedTimeEnabled: boolean,
+    cardStateMap: CardStateMap,
+    cardId: CardId
+  ) => {
+    if (linkedTimeEnabled) {
+      return globalRangeSelectionEnabled;
+    }
+
+    const cardState = cardStateMap[cardId];
+    return getCardSelectionStateToBoolean(
+      cardState?.rangeSelectionOverride,
+      globalRangeSelectionEnabled
+    );
+  }
+);
+
+/**
+ * Gets the min and max step visible in a metrics card.
+ * This value can either be the data min max or be overridden
+ * by a user min max.
+ *
+ * Note: userMinMax is not necessarily a subset of dataMinMax.
+ */
+export const getMetricsCardMinMax = createSelector(
+  getCardStateMap,
+  (cardStateMap: CardStateMap, cardId: CardId): MinMaxStep | undefined => {
+    if (!cardStateMap[cardId]) return;
+    return getMinMaxStepFromCardState(cardStateMap[cardId]);
+  }
+);
+
+/**
+ * Returns the min and max step found in the cards data.
+ */
+export const getMetricsCardDataMinMax = createSelector(
+  getCardStateMap,
+  (cardStateMap: CardStateMap, cardId: CardId): MinMaxStep | undefined => {
+    return cardStateMap[cardId]?.dataMinMax;
+  }
+);
+
+/**
+ * Gets the time selection of a metrics card.
+ */
+export const getMetricsCardTimeSelection = createSelector(
+  getCardStateMap,
+  getMetricsStepSelectorEnabled,
+  getMetricsRangeSelectionEnabled,
+  getMetricsLinkedTimeEnabled,
+  getMetricsLinkedTimeSelection,
+  (
+    cardStateMap: CardStateMap,
+    globalStepSelectionEnabled: boolean,
+    globalRangeSelectionEnabled: boolean,
+    linkedTimeEnabled: boolean,
+    linkedTimeSelection: TimeSelection | null,
+    cardId: CardId
+  ): TimeSelection | undefined => {
+    const cardState = cardStateMap[cardId];
+    if (!cardState) {
+      return;
+    }
+    const minMaxStep = getMinMaxStepFromCardState(cardState);
+    if (!minMaxStep) {
+      return;
+    }
+
+    // Handling Linked Time
+    if (linkedTimeEnabled && linkedTimeSelection) {
+      return formatTimeSelection(
+        linkedTimeSelection,
+        minMaxStep,
+        // Note that globalRangeSelection should always be used with linked time.
+        globalRangeSelectionEnabled
+      );
+    }
+
+    // If the user has disabled step selection, nothing should be returned.
+    if (
+      !getCardSelectionStateToBoolean(
+        cardState.stepSelectionOverride,
+        globalStepSelectionEnabled
+      )
+    ) {
+      return;
+    }
+
+    const rangeSelectionEnabled = getCardSelectionStateToBoolean(
+      cardState.rangeSelectionOverride,
+      globalRangeSelectionEnabled
+    );
+
+    const startStep = cardState.timeSelection?.start.step ?? minMaxStep.minStep;
+    const endStep = cardState.timeSelection?.end?.step ?? minMaxStep.maxStep;
+
+    // The default time selection
+    return formatTimeSelection(
+      {
+        start: {step: startStep},
+        end: {step: endStep},
+      },
+      minMaxStep,
+      rangeSelectionEnabled
+    );
+  }
 );

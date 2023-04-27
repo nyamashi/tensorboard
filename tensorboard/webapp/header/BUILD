@@ -7,11 +7,15 @@ licenses(["notice"])
 tf_sass_binary(
     name = "plugin_selector_styles",
     src = "plugin_selector_component.scss",
+    strict_deps = False,
+    deps = ["//tensorboard/webapp/theme"],
 )
 
 tf_sass_binary(
     name = "header_styles",
     src = "header_component.scss",
+    strict_deps = False,
+    deps = ["//tensorboard/webapp/theme"],
 )
 
 tf_ng_module(
@@ -46,7 +50,6 @@ tf_ng_module(
         "//tensorboard/webapp/feature_flag/store",
         "//tensorboard/webapp/feature_flag/store:types",
         "//tensorboard/webapp/settings",
-        "//tensorboard/webapp/tbdev_upload",
         "//tensorboard/webapp/types",
         "@npm//@angular/common",
         "@npm//@angular/core",
@@ -80,6 +83,7 @@ tf_ts_library(
         "//tensorboard/webapp/feature_flag/actions",
         "//tensorboard/webapp/settings",
         "//tensorboard/webapp/testing:mat_icon",
+        "//tensorboard/webapp/testing:utils",
         "//tensorboard/webapp/types",
         "@npm//@angular/common",
         "@npm//@angular/core",

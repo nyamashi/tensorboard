@@ -47,10 +47,9 @@ export class HistogramCardComponent {
   @Input() mode!: HistogramMode;
   @Input() xAxisType!: XAxisType;
   @Input() runColorScale!: RunColorScale;
-  @Input() showFullSize!: boolean;
+  @Input() showFullWidth!: boolean;
   @Input() isPinned!: boolean;
   @Input() linkedTimeSelection!: TimeSelectionView | null;
-  @Input() rangeSelectionEnabled?: boolean;
   @Input() isClosestStepHighlighted!: boolean | null;
 
   @Output() onFullSizeToggle = new EventEmitter<void>();

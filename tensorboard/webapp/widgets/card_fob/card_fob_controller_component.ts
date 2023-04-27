@@ -55,7 +55,6 @@ export class CardFobControllerComponent {
   readonly prospectiveFobWrapper!: ElementRef;
   @Input() axisDirection!: AxisDirection;
   @Input() timeSelection?: TimeSelection;
-  @Input() rangeSelectionEnabled: boolean = false;
   @Input() cardFobHelper!: CardFobGetStepFromPositionHelper;
   @Input() startStepAxisPosition!: number;
   @Input() endStepAxisPosition!: number | null;
@@ -69,7 +68,7 @@ export class CardFobControllerComponent {
   @Output() onTimeSelectionChanged =
     new EventEmitter<TimeSelectionWithAffordance>();
   @Output() onTimeSelectionToggled = new EventEmitter();
-  @Output() onPrespectiveStepChanged = new EventEmitter<number | null>();
+  @Output() onProspectiveStepChanged = new EventEmitter<number | null>();
 
   private hasFobMoved: boolean = false;
   private currentDraggingFob: Fob = Fob.NONE;
@@ -253,7 +252,7 @@ export class CardFobControllerComponent {
       return;
     }
 
-    this.onPrespectiveStepChanged.emit(newStep);
+    this.onProspectiveStepChanged.emit(newStep);
   }
 
   isMovingLower(position: number, movement: number): boolean {
@@ -391,7 +390,7 @@ export class CardFobControllerComponent {
       affordance: TimeSelectionAffordance.FOB_ADDED,
       timeSelection: newTimeSelection,
     });
-    this.onPrespectiveStepChanged.emit(null);
+    this.onProspectiveStepChanged.emit(null);
   }
 
   private getProspectiveTimeSelection() {
@@ -452,6 +451,6 @@ export class CardFobControllerComponent {
   }
 
   onProspectiveAreaMouseLeave() {
-    this.onPrespectiveStepChanged.emit(null);
+    this.onProspectiveStepChanged.emit(null);
   }
 }
